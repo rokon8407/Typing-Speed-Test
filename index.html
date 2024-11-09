@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" href="favicon.png" type="image/x-icon">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Typing Speed Test</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <style>
+        .font-mono { font-family: monospace; }
+        .transform { transition: transform 0.2s; }
+        .transform:hover { transform: scale(1.05); }
+        .custom-scroll::-webkit-scrollbar {
+            height: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 2px;
+        }
+        .error-shake {
+            animation: shake 0.2s ease-in-out 0s 2;
+        }
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(5px); }
+            75% { transform: translateX(-5px); }
+            100% { transform: translateX(0); }
+        }
+        .current-char {
+            animation: blink 1s infinite;
+        }
+        @keyframes blink {
+            50% { background-color: transparent; }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        const TypingTest = () => {
+            const [text, setText] = React.useState(
+                "The quick brown fox jumps over the lazy dog. This is a sample text that you can type to test your typing speed and accuracy. Feel free to customize this text or import your own passage to practice with."
+            );
+            const [userInput, setUserInput] = React.useState('');
+            const [timeLeft, setTimeLeft] = React.useState(0);
+            const [testDuration, setTestDuration] = React.useState(60);
+            const [isActive, setIsActive] = React.useState(false);
+            const [testComplete, setTestComplete] = React.useState(false);
+            const [hasError, setHasError] = React.useState(false);
+            const [stats, setStats] = React.useState({
+                wpm: 0,
+                accuracy: 100,
+                errors: 0,
+                correctChars: 0
+            });
+            const [showCustomText, setShowCustomText] = React.useState(false);
+            const inputRef = React.useRef(null);
+            const textDisplayRef = React.useRef(null);
+            const timerRef = React.useRef(null);
+
+            React.useEffect(() => {
+                if (textDisplayRef.current && userInput.length > 0) {
+                    const textWidth = textDisplayRef.current.scrollWidth;
+                    const containerWidth = textDisplayRef.current.offsetWidth;
+                    const progress = userInput.length / text.length;
+                    const scrollPosition = (textWidth - containerWidth) * progress;
+                    textDisplayRef.current.scrollLeft = scrollPosition;
+                }
+            }, [userInput]);
+
+            const calculateStats = () => {
+                const timeElapsed = (testDuration - timeLeft) / 60;
+                if (timeElapsed > 0) {
+                    const wordsTyped = userInput.trim().split(' ').length;
+                    const wpm = Math.round(wordsTyped / timeElapsed);
+                    const errors = userInput.split('').reduce((count, char, i) => 
+                        char !== text[i] ? count + 1 : count, 0);
+                    const accuracy = Math.round(
+                        ((userInput.length - errors) / userInput.length) * 100 || 0
+                    );
+
+                    setStats({
+                        wpm,
+                        accuracy,
+                        errors,
+                        correctChars: userInput.length - errors
+                    });
+                }
+            };
+
+            React.useEffect(() => {
+                if (isActive && timeLeft > 0) {
+                    timerRef.current = setInterval(() => {
+                        setTimeLeft(prev => {
+                            if (prev <= 1) {
+                                clearInterval(timerRef.current);
+                                endTest();
+                                return 0;
+                            }
+                            return prev - 1;
+                        });
+                    }, 1000);
+                }
+                return () => clearInterval(timerRef.current);
+            }, [isActive, timeLeft]);
+
+            const startTest = () => {
+                setUserInput('');
+                setTimeLeft(testDuration);
+                setIsActive(true);
+                setTestComplete(false);
+                setHasError(false);
+                setStats({ wpm: 0, accuracy: 100, errors: 0, correctChars: 0 });
+                inputRef.current?.focus();
+            };
+
+            const endTest = () => {
+                setIsActive(false);
+                setTestComplete(true);
+                calculateStats();
+            };
+
+            const handleInput = (e) => {
+                if (!isActive || testComplete) return;
+                
+                const value = e.target.value;
+                const lastChar = value[value.length - 1];
+                const expectedChar = text[value.length - 1];
+
+                // Check if the last character typed is correct
+                if (lastChar === expectedChar) {
+                    setHasError(false);
+                    setUserInput(value);
+                    calculateStats();
+                    
+                    if (value.length >= text.length) {
+                        endTest();
+                    }
+                } else {
+                    // Show error animation and prevent input
+                    setHasError(true);
+                    // Play error sound (optional)
+                    new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1NPY9BAAAA').play().catch(() => {});
+                    setTimeout(() => setHasError(false), 500);
+                }
+            };
+
+            const handleCustomText = (e) => {
+                const newText = e.target.value
+                    .replace(/\n/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+                setText(newText);
+            };
+
+            return (
+                <div className="max-w-5xl mx-auto p-8 space-y-8">
+                    {/* Header */}
+                    <div className="bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl p-8 text-">
+                        <div className="flex justify-between items-center">
+                            <div className="space-y-2">
+                                <h1 className="text-3xl font-bold">Typing Speed Test</h1>
+                                <p className="text-blue-100">Challenge yourself and improve your typing skills</p>
+                            </div>
+                            <select 
+                                className="w-40 p-2 rounded bg-black/10 text-black border border-black/20"
+                                value={testDuration}
+                                onChange={(e) => setTestDuration(parseInt(e.target.value))}
+                                disabled={isActive}
+                            >
+                                <option value="60">1 Minute</option>
+                                <option value="300">5 Minutes</option>
+                                <option value="600">10 Minutes</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Stats */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        {[
+                            { label: 'Time Left', value: `${timeLeft}s` },
+                            { label: 'WPM', value: stats.wpm },
+                            { label: 'Accuracy', value: `${stats.accuracy}%` },
+                            { label: 'Errors', value: stats.errors }
+                        ].map((stat, index) => (
+                            <div key={index} className="bg-white p-6 rounded-xl shadow-lg transform hover:scale-105 transition-transform duration-200">
+                                <div className="flex flex-col items-center space-y-2">
+                                    <p className="text-3xl font-bold">{stat.value}</p>
+                                    <p className="text-sm text-gray-500">{stat.label}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Text Display */}
+                    <div className={`bg-white p-6 rounded-xl shadow-lg ${hasError ? 'error-shake' : ''}`}>
+                        <div 
+                            ref={textDisplayRef}
+                            className="font-mono text-xl leading-relaxed overflow-x-auto whitespace-nowrap custom-scroll"
+                            style={{ scrollBehavior: 'smooth' }}
+                        >
+                            {text.split('').map((char, i) => (
+                                <span
+                                    key={i}
+                                    className={`
+                                        ${i < userInput.length
+                                            ? userInput[i] === char
+                                                ? 'text-green-500'
+                                                : 'text-red-500'
+                                            : i === userInput.length
+                                                ? 'bg-blue-200 current-char'
+                                                : ''}
+                                    `}
+                                >
+                                    {char}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Input Area */}
+                    <div className={`bg-white p-6 rounded-xl shadow-lg border-2 ${hasError ? 'border-red-500' : 'border-blue-500/20'}`}>
+                        <textarea
+                            ref={inputRef}
+                            className="w-full p-6 text-xl font-mono border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+                            value={userInput}
+                            onChange={handleInput}
+                            placeholder={isActive ? "Start typing..." : "Click 'Start Test' to begin"}
+                            disabled={!isActive || testComplete}
+                            rows={3}
+                        />
+                    </div>
+
+                    {/* Controls */}
+                    <div className="flex justify-between items-center">
+                        <div className="space-x-4">
+                            <button
+                                onClick={startTest}
+                                disabled={isActive}
+                                className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-xl disabled:opacity-50"
+                            >
+                                Start Test
+                            </button>
+                            <button
+                                onClick={() => setShowCustomText(!showCustomText)}
+                                disabled={isActive}
+                                className="border-2 px-6 py-2 rounded-xl hover:bg-gray-50 disabled:opacity-50"
+                            >
+                                Custom Text
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Custom Text Input */}
+                    {showCustomText && (
+                        <div className="bg-white p-6 rounded-xl shadow-lg border-2 border-blue-500/20">
+                            <h3 className="text-lg font-bold mb-4">Custom Practice Text</h3>
+                            <textarea
+                                className="w-full p-4 text-lg border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+                                rows={6}
+                                placeholder="Paste or type your custom text here. The text will automatically format to remove extra spaces and line breaks."
+                                onChange={handleCustomText}
+                            />
+                            <p className="text-sm text-gray-500 mt-2">
+                                Tip: Paste any text you want to practice with. The text will automatically format for optimal practice.
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Test Complete Alert */}
+                    {testComplete && (
+                        <div className="bg-green-50 border border-green-200 rounded-xl p-6">
+                            <div className="flex items-center justify-between">
+                                <div className="space-y-2">
+                                    <h3 className="font-bold text-lg">Test Complete! 🎉</h3>
+                                    <ul className="space-y-2">
+                                        <li>Speed: {stats.wpm} WPM</li>
+                                        <li>Accuracy: {stats.accuracy}%</li>
+                                        <li>Errors: {stats.errors}</li>
+                                    </ul>
+                                </div>
+                                <button 
+                                    onClick={startTest}
+                                    className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-xl"
+                                >
+                                    Try Again
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        ReactDOM.render(<TypingTest />, document.getElementById('root'));
+    </script>
+</body>
+
+<footer style="text-align: center; padding: 20px; background-color: #f1f1f1;">
+    <p>&copy; Generated By Claude >> Prompt by <a href="https://www.rokon.top/" target="_blank">Md. Rokonuzzaman</a></p>
+</footer>
+
+</html>
